@@ -44,7 +44,7 @@ class Model(pl.LightningModule):
         gpt.lm_head.weight = gpt.transformer.wte.weight
         self.gpt = gpt
 
-    def setup(self):
+    def setup(self, stage):
         # see https://github.com/pytorch/xla/issues/1245
         self.gpt.tie_weights()
 
@@ -56,8 +56,19 @@ class Model(pl.LightningModule):
         schedulers = []
 
         if self.hparams.use_onecycle:
+            assert self.hparams.max_epochs == self.hparams.min_epochs
+            print(len(self.train_dataloader()))
+
             schedulers.append(
-                torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=self.hparams.lr)
+                {
+                    "scheduler": torch.optim.lr_scheduler.OneCycleLR(
+                        optimizer,
+                        max_lr=self.hparams.lr,
+                        epochs=self.hparams.max_epochs,
+                        steps_per_epoch=len(self.train_dataloader()),
+                    ),
+                    "interval": "step",
+                }
             )
 
         return [optimizer], schedulers
