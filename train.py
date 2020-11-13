@@ -5,7 +5,6 @@ from transformers import (
     GPT2LMHeadModel,
     GPT2Tokenizer,
     GPT2Config,
-    pipeline,
 )
 import datasets
 import pytorch_lightning as pl
@@ -18,13 +17,10 @@ import math
 import wandb
 import os
 
-CPU_MODEL = None
-
 
 class Model(pl.LightningModule):
     def __init__(self, tokenizer, train_dataset, val_dataset, hparams):
         super().__init__()
-
         self.hparams = hparams
 
         self.tokenizer = tokenizer
@@ -32,11 +28,11 @@ class Model(pl.LightningModule):
         self.val_dataset = val_dataset
 
         if self.hparams.use_english_weights:
-            self.gpt = GPT2LMHeadModel.from_pretrained("gpt2")
+            gpt = GPT2LMHeadModel.from_pretrained("gpt2")
         else:
-            self.gpt = GPT2LMHeadModel(GPT2Config.from_pretrained("gpt2"))
+            gpt = GPT2LMHeadModel(GPT2Config.from_pretrained("gpt2"))
 
-        wte = self.gpt.transformer.wte
+        wte = gpt.transformer.wte
 
         if hparams.wte_path is not None:
             wte.weight = nn.Parameter(torch.load(hparams.wte_path))
@@ -45,11 +41,12 @@ class Model(pl.LightningModule):
             wte.weight = nn.Parameter(torch.normal(mean, std, size=wte.weight.size()))
 
         # tie input and output embeddings
-        self.gpt.lm_head.weight = self.gpt.transformer.wte.weight
+        gpt.lm_head.weight = gpt.transformer.wte.weight
+        self.gpt = gpt
 
-        # used to generate samples, must be on CPU
-        global CPU_MODEL
-        CPU_MODEL = GPT2LMHeadModel(self.gpt.config)
+    def setup(self):
+        # see https://github.com/pytorch/xla/issues/1245
+        self.gpt.tie_weights()
 
     def forward(self, *args, **kwargs):
         return self.gpt.forward(*args, **kwargs)
@@ -94,29 +91,8 @@ class Model(pl.LightningModule):
         loss = loss_sum / size
         perplexity = math.exp(loss)
 
-        table = wandb.Table(columns=["Prompt", "Output"])
-
-        CPU_MODEL.load_state_dict(self.gpt.state_dict())
-
-        generate = pipeline(
-            "text-generation",
-            model=CPU_MODEL,
-            tokenizer=self.tokenizer,
-            config={"max_length": 6000},
-        )
-
-        for prompt in open("prompts.txt").read().split("\n"):
-            table.add_data(
-                prompt,
-                generate(prompt, pad_token_id=self.tokenizer.eos_token_id)[0][
-                    "generated_text"
-                ],
-            )
-
         if len(outputs) > self.hparams.num_sanity_val_steps:
-            self.logger.experiment.log(
-                {"val_loss": loss, "val_perplexity": perplexity, "examples": table}
-            )
+            self.logger.experiment.log({"val_loss": loss, "val_perplexity": perplexity})
 
     @staticmethod
     def get_parser():
