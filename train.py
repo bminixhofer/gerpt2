@@ -13,7 +13,7 @@ from argparse import ArgumentParser
 from utils import TrainCollator, ValCollator
 import multiprocessing
 from pytorch_lightning.loggers import WandbLogger
-from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateLogger
+from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 import math
 import wandb
 import os
@@ -213,7 +213,7 @@ if __name__ == "__main__":
     checkpoint_dir = os.path.join(logger.experiment.dir, "checkpoints")
     wandb.save(os.path.join(checkpoint_dir, "*.cpkt"))
 
-    callbacks = [LearningRateLogger(logging_interval="step")]
+    callbacks = [LearningRateMonitor(logging_interval="step")]
 
     if not args.no_upload:
         callbacks.append(
