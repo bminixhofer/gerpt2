@@ -1,4 +1,3 @@
-from torch.nn.utils.rnn import pad_sequence
 import torch
 import random
 
@@ -9,21 +8,23 @@ class ValCollator:
         self.max_length = max_length
 
     def __call__(self, batch):
-        input_ids = pad_sequence(
-            [torch.tensor(x["tokens"][: self.max_length]) for x in batch],
-            batch_first=True,
-            padding_value=self.tokenizer.eos_token_id,
-        )
-        attention_mask = pad_sequence(
-            [
-                torch.ones(min(len(x["tokens"]), self.max_length), dtype=torch.bool)
-                for x in batch
-            ],
-            batch_first=True,
-            padding_value=self.tokenizer.eos_token_id,
-        )
+        input_ids = torch.zeros((len(batch), self.max_length), dtype=torch.long)
+        labels = torch.full((len(batch), self.max_length), -100, dtype=torch.long)
+        attention_mask = torch.zeros((len(batch), self.max_length), dtype=torch.bool)
 
-        return input_ids, attention_mask
+        tokenized = [x["tokens"] for x in batch]
+        for i, ids in enumerate(tokenized):
+            length = min(len(ids), self.max_length)
+
+            input_ids[i, :length] = torch.tensor(ids[:length], dtype=torch.long)
+            labels[i, :length] = torch.tensor(ids[:length], dtype=torch.long)
+            attention_mask[i, :length] = 1
+
+        return {
+            "input_ids": input_ids,
+            "labels": labels,
+            "attention_mask": attention_mask,
+        }
 
 
 class TrainCollator:
@@ -60,4 +61,7 @@ class TrainCollator:
                         pad_tokens
                     )
 
-        return output
+        return {
+            "input_ids": output,
+            "labels": output.clone(),
+        }

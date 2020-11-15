@@ -1,218 +1,132 @@
-import torch
-from torch import nn
-from torch.utils.data import DataLoader
 from transformers import (
+    HfArgumentParser,
     GPT2LMHeadModel,
-    GPT2Tokenizer,
     GPT2Config,
+    GPT2Tokenizer,
+    Trainer,
 )
 import datasets
-import pytorch_lightning as pl
+from dataclasses import dataclass
+from transformers.training_args import TrainingArguments
 from argparse import ArgumentParser
-from utils import TrainCollator, ValCollator
-import multiprocessing
-from pytorch_lightning.loggers import WandbLogger
-from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
-import math
-import wandb
-import os
+from torch.utils.data import DataLoader
+from torch import nn
+import torch
+from utils import ValCollator, TrainCollator
 
 
-class Model(pl.LightningModule):
-    def __init__(self, tokenizer, train_dataset, val_dataset, hparams):
-        super().__init__()
-        self.hparams = hparams
+@dataclass
+class ExtraArgs:
+    train_slice: str
+    val_slice: str
+    max_length: int
+    wte_path: str = None
+    use_english_weights: bool = False
 
-        self.tokenizer = tokenizer
-        self.train_dataset = train_dataset
-        self.val_dataset = val_dataset
 
-        if self.hparams.use_english_weights:
-            gpt = GPT2LMHeadModel.from_pretrained("gpt2")
-        else:
-            gpt = GPT2LMHeadModel(GPT2Config.from_pretrained("gpt2"))
+class GPT2Trainer(Trainer):
+    def __init__(self, *args, **kwargs):
+        self.extra_args = kwargs.pop("extra_args")
 
-        wte = gpt.transformer.wte
+        super().__init__(*args, **kwargs)
 
-        if hparams.wte_path is not None:
-            wte.weight = nn.Parameter(torch.load(hparams.wte_path))
-        else:
-            mean, std = wte.weight.mean().item(), wte.weight.std().item()
-            wte.weight = nn.Parameter(torch.normal(mean, std, size=wte.weight.size()))
+    def get_eval_dataloader(self, _):
+        eval_sampler = self._get_eval_sampler(self.eval_dataset)
 
-        # tie input and output embeddings
-        gpt.lm_head.weight = gpt.transformer.wte.weight
-        self.gpt = gpt
-
-    def setup(self, stage):
-        # see https://github.com/pytorch/xla/issues/1245
-        self.gpt.tie_weights()
-
-    def forward(self, *args, **kwargs):
-        return self.gpt.forward(*args, **kwargs)
-
-    def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=self.hparams.lr)
-        schedulers = []
-
-        if self.hparams.use_onecycle:
-            assert self.hparams.max_epochs == self.hparams.min_epochs
-            print(len(self.train_dataloader()))
-
-            schedulers.append(
-                {
-                    "scheduler": torch.optim.lr_scheduler.OneCycleLR(
-                        optimizer,
-                        max_lr=self.hparams.lr,
-                        epochs=self.hparams.max_epochs,
-                        steps_per_epoch=len(self.train_dataloader()),
-                    ),
-                    "interval": "step",
-                }
-            )
-
-        return [optimizer], schedulers
-
-    def training_step(self, batch, batch_idx):
-        input_ids = batch
-        labels = input_ids.clone()
-
-        loss = self.forward(input_ids=input_ids, labels=labels)[0]
-
-        self.log("loss", loss)
-        return loss
-
-    def validation_step(self, batch, batch_idx):
-        input_ids, attention_mask = batch
-        labels = input_ids.clone()
-        labels[~attention_mask] = -100
-
-        loss = (
-            self.forward(
-                input_ids=input_ids, attention_mask=attention_mask, labels=labels
-            )[0]
-            * attention_mask.sum()
+        return DataLoader(
+            self.eval_dataset,
+            sampler=eval_sampler,
+            batch_size=self.args.eval_batch_size,
+            collate_fn=ValCollator(self.tokenizer, self.extra_args.max_length),
+            drop_last=self.args.dataloader_drop_last,
+            num_workers=self.args.dataloader_num_workers,
         )
-        return {"loss": loss.item(), "size": attention_mask.sum().item()}
 
-    def validation_epoch_end(self, outputs):
-        loss_sum = sum(x["loss"] for x in outputs)
-        size = sum(x["size"] for x in outputs)
+    def get_train_dataloader(self):
+        train_sampler = self._get_train_sampler()
 
-        loss = loss_sum / size
-        perplexity = math.exp(loss)
-
-        if len(outputs) > self.hparams.num_sanity_val_steps:
-            self.logger.experiment.log({"val_loss": loss, "val_perplexity": perplexity})
-
-    @staticmethod
-    def get_parser():
-        parser = ArgumentParser()
-        parser.add_argument(
-            "--batch_size", type=int,
-        )
-        parser.add_argument("--max_length", type=int, help="Maximum context length.")
-        parser.add_argument(
-            "--wte_path", type=str, help="Path to .pth WTE embeddings to load."
-        )
-        parser.add_argument(
-            "--use_english_weights",
-            action="store_true",
-            help="Whether to start from weights of english GPT2.",
-        )
-        parser.add_argument(
-            "--use_onecycle",
-            action="store_true",
-            help="Whether to use 1cycle learning rate policy (if true, max_lr = lr).",
-        )
-        parser.add_argument("--lr", type=float, help="Learning rate.")
-        parser = pl.Trainer.add_argparse_args(parser)
-
-        parser.set_defaults(
-            batch_size=2,
-            max_length=1024,
-            lr=1e-3,
-            max_epochs=1,
-            wte_path=None,
-            use_english_weights=False,
-        )
-        return parser
-
-    def train_dataloader(self):
         return DataLoader(
             self.train_dataset,
+            batch_size=self.args.train_batch_size,
+            sampler=train_sampler,
             collate_fn=TrainCollator(
-                self.tokenizer, self.hparams.max_length, self.train_dataset
+                self.tokenizer, self.extra_args.max_length, self.train_dataset
             ),
-            num_workers=multiprocessing.cpu_count(),
-            batch_size=self.hparams.batch_size,
-            shuffle=True,
+            drop_last=self.args.dataloader_drop_last,
+            num_workers=self.args.dataloader_num_workers,
         )
 
-    def val_dataloader(self):
-        return DataLoader(
-            self.val_dataset,
-            collate_fn=ValCollator(self.tokenizer, self.hparams.max_length),
-            num_workers=multiprocessing.cpu_count(),
-            batch_size=self.hparams.batch_size,
-            shuffle=False,
-        )
+
+def get_model(extra_args):
+    if extra_args.use_english_weights:
+        model = GPT2LMHeadModel.from_pretrained("gpt2")
+    else:
+        model = GPT2LMHeadModel(GPT2Config.from_pretrained("gpt2"))
+
+    wte = model.transformer.wte
+    if extra_args.wte_path is not None:
+        wte.weight = nn.Parameter(torch.load(extra_args.wte_path))
+    else:
+        mean, std = wte.weight.mean().item(), wte.weight.std().item()
+        wte.weight = nn.Parameter(torch.normal(mean, std, size=wte.weight.size()))
+
+    # tie input and output embeddings
+    model.lm_head.weight = model.transformer.wte.weight
+    model.tie_weights()
+
+    return model
 
 
 if __name__ == "__main__":
-    parser = Model.get_parser()
+    json_file_parser = ArgumentParser()
+    json_file_parser.add_argument("--config_file", type=str, default=None)
+    json_file_path = json_file_parser.parse_args().config_file
 
-    parser.add_argument(
-        "--train_slice", type=str, default=":", help="Slice of training data to use.",
-    )
-    parser.add_argument(
-        "--val_slice", type=str, default=":", help="Slice of validation data to use.",
-    )
-    parser.add_argument(
-        "--no_upload", action="store_true", help="Skip uploading model checkpoints.",
-    )
-    logger = WandbLogger(project="gerpt2")
-    parser.set_defaults(logger=logger)
+    parser = HfArgumentParser([TrainingArguments, ExtraArgs])
 
-    args = parser.parse_args()
-
-    tokenizer = GPT2Tokenizer(
-        "data/used/german_tokenizer/vocab.json", "data/used/german_tokenizer/merges.txt"
-    )
-    tokenizer.pad_token = tokenizer.eos_token
+    if json_file_path is None:
+        training_args, extra_args = parser.parse_args_into_dataclasses()
+    else:
+        training_args, extra_args = parser.parse_json_file(json_file_path)
 
     train_dataset = datasets.load_dataset(
         "json",
         data_files="data/used/train.tokens.json",
-        split=f"train[{args.train_slice}]",
+        split=f"train[{extra_args.train_slice}]",
         cache_dir="data/used/train_tokens",
     )
 
     val_dataset = datasets.load_dataset(
         "json",
         data_files="data/used/val.tokens.json",
-        split=f"train[{args.val_slice}]",
+        split=f"train[{extra_args.val_slice}]",
         cache_dir="data/used/val_tokens",
     )
 
-    model = Model(tokenizer, train_dataset, val_dataset, args)
+    model = get_model(extra_args)
 
-    checkpoint_dir = os.path.join(logger.experiment.dir, "checkpoints")
-    wandb.save(os.path.join(checkpoint_dir, "*.cpkt"))
+    tokenizer = GPT2Tokenizer(
+        "data/used/german_tokenizer/vocab.json", "data/used/german_tokenizer/merges.txt"
+    )
+    tokenizer.pad_token = tokenizer.eos_token
 
-    callbacks = [LearningRateMonitor(logging_interval="step")]
+    training_args.remove_unused_columns = False
+    steps_per_epoch = int(
+        len(train_dataset)
+        / training_args.per_device_train_batch_size
+        / training_args.gradient_accumulation_steps
+    )
+    training_args.eval_steps = steps_per_epoch
+    training_args.save_steps = steps_per_epoch
+    training_args.logging_steps = 50
 
-    if not args.no_upload:
-        callbacks.append(
-            ModelCheckpoint(
-                monitor="loss",
-                dirpath=checkpoint_dir,
-                filename="gpt2-{epoch:02d}-{loss:.2f}",
-                save_top_k=-1,
-                mode="min",
-            )
-        )
+    trainer = GPT2Trainer(
+        model,
+        training_args,
+        extra_args=extra_args,
+        train_dataset=train_dataset,
+        eval_dataset=val_dataset,
+        tokenizer=tokenizer,
+    )
 
-    trainer = pl.Trainer.from_argparse_args(args, callbacks=callbacks)
-    trainer.tune(model)
-    trainer.fit(model)
+    trainer.train()
