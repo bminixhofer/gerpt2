@@ -7,12 +7,17 @@ from transformers import (
 )
 import datasets
 from dataclasses import dataclass
+from transformers.integrations import WandbCallback
 from transformers.training_args import TrainingArguments
 from argparse import ArgumentParser
 from torch.utils.data import DataLoader
 from torch import nn
 import torch
 from utils import ValCollator, TrainCollator
+import wandb
+import os
+import shutil
+from coolname import generate_slug
 
 
 @dataclass
@@ -24,11 +29,56 @@ class ExtraArgs:
     use_english_weights: bool = False
 
 
+class GPT2WandbCallback(WandbCallback):
+    def on_save(self, args, state, control, **kwargs):
+        if state.is_world_process_zero:
+            ckpt_path = os.path.join(wandb.run.dir, "checkpoints")
+
+            if os.path.exists(ckpt_path):
+                shutil.rmtree(ckpt_path)
+            shutil.copytree(args.output_dir, ckpt_path)
+
+        super().on_save(args, state, control, **kwargs)
+
+
 class GPT2Trainer(Trainer):
     def __init__(self, *args, **kwargs):
         self.extra_args = kwargs.pop("extra_args")
 
         super().__init__(*args, **kwargs)
+
+    # adapted to not use scheduler
+    def create_optimizer_and_scheduler(self, num_training_steps: int):
+        if self.optimizer is None:
+            no_decay = ["bias", "LayerNorm.weight"]
+            optimizer_grouped_parameters = [
+                {
+                    "params": [
+                        p
+                        for n, p in self.model.named_parameters()
+                        if not any(nd in n for nd in no_decay)
+                    ],
+                    "weight_decay": self.args.weight_decay,
+                },
+                {
+                    "params": [
+                        p
+                        for n, p in self.model.named_parameters()
+                        if any(nd in n for nd in no_decay)
+                    ],
+                    "weight_decay": 0.0,
+                },
+            ]
+            self.optimizer = torch.optim.AdamW(
+                optimizer_grouped_parameters,
+                lr=self.args.learning_rate,
+                betas=(self.args.adam_beta1, self.args.adam_beta2),
+                eps=self.args.adam_epsilon,
+            )
+        if self.lr_scheduler is None:
+            self.lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
+                self.optimizer, lambda epoch: 1
+            )
 
     def get_eval_dataloader(self, _):
         eval_sampler = self._get_eval_sampler(self.eval_dataset)
@@ -77,17 +127,18 @@ def get_model(extra_args):
     return model
 
 
-if __name__ == "__main__":
+def main():
     json_file_parser = ArgumentParser()
     json_file_parser.add_argument("--config_file", type=str, default=None)
-    json_file_path = json_file_parser.parse_args().config_file
+    json_file_parser.add_argument("--tpu_num_cores", type=int, default=None)
+    json_parser_args = json_file_parser.parse_args()
 
     parser = HfArgumentParser([TrainingArguments, ExtraArgs])
 
-    if json_file_path is None:
+    if json_parser_args.config_file is None:
         training_args, extra_args = parser.parse_args_into_dataclasses()
     else:
-        training_args, extra_args = parser.parse_json_file(json_file_path)
+        training_args, extra_args = parser.parse_json_file(json_parser_args.config_file)
 
     train_dataset = datasets.load_dataset(
         "json",
@@ -110,15 +161,22 @@ if __name__ == "__main__":
     )
     tokenizer.pad_token = tokenizer.eos_token
 
+    name = generate_slug(2)
+
+    if json_parser_args.tpu_num_cores is not None:
+        training_args.tpu_num_cores = json_parser_args.tpu_num_cores
+
     training_args.remove_unused_columns = False
     steps_per_epoch = int(
         len(train_dataset)
         / training_args.per_device_train_batch_size
         / training_args.gradient_accumulation_steps
+        / training_args.tpu_num_cores
     )
     training_args.eval_steps = steps_per_epoch
     training_args.save_steps = steps_per_epoch
-    training_args.logging_steps = 50
+    training_args.run_name = name
+    training_args.output_dir = os.path.join("checkpoints", name)
 
     trainer = GPT2Trainer(
         model,
@@ -127,6 +185,17 @@ if __name__ == "__main__":
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
         tokenizer=tokenizer,
+        callbacks=[GPT2WandbCallback],
     )
+    trainer.remove_callback(WandbCallback)
 
     trainer.train()
+
+
+def _mp_fn(index):
+    # For xla_spawn (TPUs)
+    main()
+
+
+if __name__ == "__main__":
+    main()

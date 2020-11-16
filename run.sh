@@ -1,1 +1,1 @@
-WANDB_WATCH=false WANDB_PROJECT=gerpt2 python train_huggingface.py --config_file=configs/test.json
+XLA_USE_BF16=1 WANDB_WATCH=false python ../transformers/examples/xla_spawn.py --num_cores=8 train.py --config_file=configs/test_tpu.json
