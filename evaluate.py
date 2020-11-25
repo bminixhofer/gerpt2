@@ -21,7 +21,7 @@ from datasets import load_dataset
     help="Whether to use the German Wikipedia for evaluation instead of a text file.",
 )
 @click.option(
-    "--max_n_chars", default=1_000_000, help="Maximum number of chars to load."
+    "--max_n_chars", default=50_000_000, help="Maximum number of chars to load."
 )
 def main(identifier, text_path, use_german_wikipedia, max_n_chars):
     # german wikipedia XOR a text path has to be set

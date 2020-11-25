@@ -1,4 +1,4 @@
-from transformers import GPT2LMHeadModel, GPT2Tokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 import click
 
@@ -13,10 +13,8 @@ import click
 @click.option("--n", default=1, help="Number of responses to generate")
 @click.option("--max_length", default=500, help="Length in tokens of the response.")
 def main(identifier, prompt, n, max_length):
-    tokenizer = GPT2Tokenizer.from_pretrained(identifier)
-    model = GPT2LMHeadModel.from_pretrained(
-        identifier, pad_token_id=tokenizer.eos_token_id
-    )
+    tokenizer = AutoTokenizer.from_pretrained(identifier)
+    model = AutoModelForCausalLM.from_pretrained(identifier)
 
     print("PROMPT:", prompt)
     print()
