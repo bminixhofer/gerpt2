@@ -13,7 +13,7 @@ from argparse import ArgumentParser
 from torch.utils.data import DataLoader
 from torch import nn
 import torch
-from utils import ValCollator, TrainCollator
+from utils import Collator
 import wandb
 import os
 import shutil
@@ -25,6 +25,7 @@ class ExtraArgs:
     train_slice: str
     val_slice: str
     max_length: int
+    use_onecycle: bool
     wte_path: str = None
     use_english_weights: bool = False
 
@@ -76,9 +77,17 @@ class GPT2Trainer(Trainer):
                 eps=self.args.adam_epsilon,
             )
         if self.lr_scheduler is None:
-            self.lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
-                self.optimizer, lambda epoch: 1
-            )
+            if self.extra_args.use_onecycle:
+                self.lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
+                    self.optimizer,
+                    self.args.learning_rate,
+                    epochs=self.args.num_train_epochs,
+                    steps_per_epoch=self.args.steps_per_epoch,
+                )
+            else:
+                self.lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
+                    self.optimizer, lambda epoch: 1
+                )
 
     def get_eval_dataloader(self, _):
         eval_sampler = self._get_eval_sampler(self.eval_dataset)
@@ -87,7 +96,7 @@ class GPT2Trainer(Trainer):
             self.eval_dataset,
             sampler=eval_sampler,
             batch_size=self.args.eval_batch_size,
-            collate_fn=ValCollator(self.tokenizer, self.extra_args.max_length),
+            collate_fn=Collator(self.extra_args.max_length),
             drop_last=self.args.dataloader_drop_last,
             num_workers=self.args.dataloader_num_workers,
         )
@@ -99,9 +108,7 @@ class GPT2Trainer(Trainer):
             self.train_dataset,
             batch_size=self.args.train_batch_size,
             sampler=train_sampler,
-            collate_fn=TrainCollator(
-                self.tokenizer, self.extra_args.max_length, self.train_dataset
-            ),
+            collate_fn=Collator(self.extra_args.max_length),
             drop_last=self.args.dataloader_drop_last,
             num_workers=self.args.dataloader_num_workers,
         )
@@ -173,6 +180,7 @@ def main():
         / training_args.gradient_accumulation_steps
         / training_args.tpu_num_cores
     )
+    training_args.steps_per_epoch = steps_per_epoch
     training_args.eval_steps = steps_per_epoch
     training_args.save_steps = steps_per_epoch
     training_args.run_name = name

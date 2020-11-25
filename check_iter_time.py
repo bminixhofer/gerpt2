@@ -1,6 +1,6 @@
 from torch.utils.data import DataLoader
 import datasets
-from utils import TrainCollator
+from utils import Collator
 from transformers import GPT2Tokenizer
 import multiprocessing
 import argparse
@@ -27,7 +27,7 @@ if __name__ == "__main__":
 
     loader = DataLoader(
         train_dataset,
-        collate_fn=TrainCollator(tokenizer, args.max_length, train_dataset),
+        collate_fn=Collator(args.max_length),
         num_workers=multiprocessing.cpu_count(),
         batch_size=args.batch_size,
         shuffle=True,
