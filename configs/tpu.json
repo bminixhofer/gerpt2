@@ -1,18 +1,18 @@
 {
     "output_dir": 0,
-    "train_slice": ":5%",
-    "val_slice": ":10%",
+    "train_slice": ":",
+    "val_slice": ":",
     "max_length": 1024,
     "per_device_train_batch_size": 4,
     "per_device_eval_batch_size": 4,
     "gradient_accumulation_steps": 8,
     "evaluation_strategy": "epoch",
-    "num_train_epochs": 1,
+    "num_train_epochs": 7,
     "wte_path": "data/used/german_wte_weight.pth",
     "use_english_weights": 1,
     "weight_decay": 0.01,
-    "learning_rate": 1e-3,
+    "learning_rate": 5e-3,
     "use_onecycle": 1,
     "eval_accumulation_steps": 8,
-    "logging_steps": 20
+    "logging_steps": 10
 }

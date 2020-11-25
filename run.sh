@@ -1,1 +1,1 @@
-XLA_USE_BF16=1 WANDB_WATCH=false python ../transformers/examples/xla_spawn.py --num_cores=8 train.py --config_file=configs/test_tpu.json
+XLA_USE_BF16=1 WANDB_PROJECT=gerpt2 WANDB_WATCH=false python ../transformers/examples/xla_spawn.py --num_cores=8 train.py --config_file=configs/tpu.json
