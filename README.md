@@ -2,6 +2,8 @@
 
 A small German GPT2.
 
+See the [GPT2 model card](https://huggingface.co/gpt2) for considerations on limitations and bias. See the [GPT2 documentation](https://huggingface.co/transformers/model_doc/gpt2.html) for details on GPT2.
+
 ## Comparison to [dbmdz/german-gpt2](https://huggingface.co/dbmdz/german-gpt2)
 
 I evaluated both GerPT2 and the other German GPT2, [dbmdz/german-gpt2](https://huggingface.co/dbmdz/german-gpt2) on the [CC-100](http://data.statmt.org/cc-100/) dataset and on the German Wikipedia:
@@ -28,6 +30,8 @@ model = AutoModelForCausalLM.from_pretrained("benjamin/gerpt2")
 And use it with [Transformer's pipelines](https://huggingface.co/transformers/main_classes/pipelines.html):
 
 ```python
+from transformers import pipeline
+
 prompt = "In einer schockierenden Entdeckung fanden Wissenschaftler eine Herde Einhörner, die in einem abgelegenen, zuvor unerforschten Tal in den Anden lebten. Noch überraschender für die Forscher war die Tatsache, dass die Einhörner perfekt Deutsch sprachen."
 
 pipe = pipeline("text-generation", model=model, tokenizer=tokenizer)
@@ -115,4 +119,5 @@ GerPT2 is licensed under the MIT License.
 
 ## Acknowledgements
 
-TODO
+Thanks to [Hugging Face](https://huggingface.co) for awesome tools and infrastructure.
+Special thanks to [PetFinder.my](https://www.petfinder.my/) for generously sponsoring the resources used for training.
