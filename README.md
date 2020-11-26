@@ -18,27 +18,9 @@ See the script `evaluate.py` in the [GerPT2 Github repository](https://github.co
 
 ## Usage
 
-Load the model:
+![GerPT2 usage](https://user-images.githubusercontent.com/13353204/100330362-288d0b80-2fcf-11eb-82e7-ed71c7140a88.png)
 
-```python
-from transformers import AutoModelForCausalLM, AutoTokenizer
-
-tokenizer = AutoTokenizer.from_pretrained("benjamin/gerpt2")
-model = AutoModelForCausalLM.from_pretrained("benjamin/gerpt2")
-```
-
-And use it with [Transformer's pipelines](https://huggingface.co/transformers/main_classes/pipelines.html):
-
-```python
-from transformers import pipeline
-
-prompt = "In einer schockierenden Entdeckung fanden Wissenschaftler eine Herde Einhörner, die in einem abgelegenen, zuvor unerforschten Tal in den Anden lebten. Noch überraschender für die Forscher war die Tatsache, dass die Einhörner perfekt Deutsch sprachen."
-
-pipe = pipeline("text-generation", model=model, tokenizer=tokenizer)
-print(pipe(prompt)[0]["generated_text"])
-```
-
-alternatively, two tricks can improve the generated text:
+Also, two tricks might improve the generated text:
 
 ```python
 output = model.generate(
@@ -56,19 +38,6 @@ output = model.generate(
 )[0]
 print(tokenizer.decode(output))
 ```
-
-The prompt from above could generate something like this:
-
-```
-In einer schockierenden Entdeckung fanden Wissenschaftler eine Herde Einhörner, die in einem abgelegenen, zuvor unerforschten Tal in den Anden lebten. Noch überraschender für die Forscher war die Tatsache, dass die Einhörner perfekt Deutsch sprachen. Der Wissenschaftler Jean-Pierre Avon, ein Experte für den Umgang mit Einhörnern, war schockiert über den Fund. Er war nach Südamerika gereist und hat eine Entdeckung gemacht, die sich mehr als jemals zuvor für deutsche Forscher als nützlich erwiesen hat.
-Die Wissenschaftler, die zum ersten Mal auf die Entdeckung der Einhörner im Jahr 2005 kamen, konnten eine Menge über die Existenz der Tiere erzählen und sagen, dass sie die menschliche Sprache erlernen und verstehen. Die Forscher analysierten auch die verschiedenen Arten von Einhörnern mit ähnlichen Eigenschaften und entdeckten so, dass es sich um eine besonders frühe Art von Einhörnern handelt.
-Auch die verschiedenen Arten von Einhörnern, die die Forscher identifizierten, wurden in der folgenden Tabelle präsentiert: Von den fünf Arten der Diehörner sind zwei Arten aktiv und ihre Zahl ist größer als die Anzahl der aktiven Individuen, von denen jedes eine eine eigene Gruppe ist.
-In der gleichen Ausgabe, die im Oktober 2009 veröffentlicht wurde, haben die Forscher eine erste Entdeckung gemacht, die den Unterschied zwischen den Arten einer anderen Art macht. Die Forscher stellten fest, dass die Individuen, die in Europa geboren wurden, viel älter waren als die Arten, die in den USA geboren wurden. Die Forscher konnten auch die Herkunft der Einhörner feststellen, da die verschiedenen Arten unterschiedliche Wurzeln hatten und sich in verschiedenen Regionen der Erde, wie Deutschland, befinden.
-Wenn die Forscher von ihrem Forscherteam hören, dass das Verschwinden eines Einhörners und die Suche nach dem Entdecker eines Vogels für einige Zeit die natürliche Lebensweise beeinträchtigt, kann es durchaus sein, dass sie ein kleines Problem vor Augen haben. Das ist natürlich kein Grund zur Sorge.
-Einhörner haben eine lange Geschichte. Sie haben Vorfahren aus der Zeit, als das Wort „Einhörner“ noch als "ein großes Wesen" oder „Pferde" (oder "Narren" oder "Maulwürmer") in der Familie des Menschen vorkam. Die Rasse hatte eine lange Geschichte in dem Land, als es noch ein Hirtendorf war. Später kamen die Menschen als "Pferde" in die Schweiz, um ihr Wissen über eine kleine Herde Einhörner weiterzugeben.
-```
-
-(picked from 10 samples)
 
 ## Training details
 
