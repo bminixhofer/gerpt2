@@ -5,7 +5,6 @@ from transformers import (
     GPT2Tokenizer,
     Trainer,
 )
-import datasets
 from dataclasses import dataclass
 from transformers.integrations import WandbCallback
 from transformers.training_args import TrainingArguments
@@ -18,14 +17,15 @@ import wandb
 import os
 import shutil
 from coolname import generate_slug
+import h5py
 
 
 @dataclass
 class ExtraArgs:
-    train_slice: str
-    val_slice: str
     max_length: int
     use_onecycle: bool
+    max_n_train: int = None
+    max_n_val: int = None
     wte_path: str = None
     use_english_weights: bool = False
 
@@ -147,57 +147,54 @@ def main():
     else:
         training_args, extra_args = parser.parse_json_file(json_parser_args.config_file)
 
-    train_dataset = datasets.load_dataset(
-        "json",
-        data_files="data/used/train.tokens.json",
-        split=f"train[{extra_args.train_slice}]",
-        cache_dir="data/used/train_tokens",
-    )
+    with h5py.File("prepare/train.hdf5", "r") as f:
+        train_dataset = f["train"]
+        val_dataset = f["val"]
 
-    val_dataset = datasets.load_dataset(
-        "json",
-        data_files="data/used/val.tokens.json",
-        split=f"train[{extra_args.val_slice}]",
-        cache_dir="data/used/val_tokens",
-    )
+        if extra_args.max_n_train is not None:
+            train_dataset = train_dataset[: extra_args.max_n_train]
 
-    model = get_model(extra_args)
+        if extra_args.max_n_val is not None:
+            val_dataset = val_dataset[: extra_args.max_n_val]
 
-    tokenizer = GPT2Tokenizer(
-        "data/used/german_tokenizer/vocab.json", "data/used/german_tokenizer/merges.txt"
-    )
-    tokenizer.pad_token = tokenizer.eos_token
+        model = get_model(extra_args)
 
-    name = generate_slug(2)
+        tokenizer = GPT2Tokenizer(
+            "data/used/german_tokenizer/vocab.json",
+            "data/used/german_tokenizer/merges.txt",
+        )
+        tokenizer.pad_token = tokenizer.eos_token
 
-    if json_parser_args.tpu_num_cores is not None:
-        training_args.tpu_num_cores = json_parser_args.tpu_num_cores
+        name = generate_slug(2)
 
-    training_args.remove_unused_columns = False
-    steps_per_epoch = int(
-        len(train_dataset)
-        / training_args.per_device_train_batch_size
-        / training_args.gradient_accumulation_steps
-        / training_args.tpu_num_cores
-    )
-    training_args.steps_per_epoch = steps_per_epoch
-    training_args.eval_steps = steps_per_epoch
-    training_args.save_steps = steps_per_epoch
-    training_args.run_name = name
-    training_args.output_dir = os.path.join("checkpoints", name)
+        if json_parser_args.tpu_num_cores is not None:
+            training_args.tpu_num_cores = json_parser_args.tpu_num_cores
 
-    trainer = GPT2Trainer(
-        model,
-        training_args,
-        extra_args=extra_args,
-        train_dataset=train_dataset,
-        eval_dataset=val_dataset,
-        tokenizer=tokenizer,
-        callbacks=[GPT2WandbCallback],
-    )
-    trainer.remove_callback(WandbCallback)
+        training_args.remove_unused_columns = False
+        steps_per_epoch = int(
+            len(train_dataset)
+            / training_args.per_device_train_batch_size
+            / training_args.gradient_accumulation_steps
+            / training_args.tpu_num_cores
+        )
+        training_args.steps_per_epoch = steps_per_epoch
+        training_args.eval_steps = steps_per_epoch
+        training_args.save_steps = steps_per_epoch
+        training_args.run_name = name
+        training_args.output_dir = os.path.join("checkpoints", name)
 
-    trainer.train()
+        trainer = GPT2Trainer(
+            model,
+            training_args,
+            extra_args=extra_args,
+            train_dataset=train_dataset,
+            eval_dataset=val_dataset,
+            tokenizer=tokenizer,
+            callbacks=[GPT2WandbCallback],
+        )
+        trainer.remove_callback(WandbCallback)
+
+        trainer.train()
 
 
 def _mp_fn(index):

@@ -6,7 +6,7 @@ class Collator:
         self.max_length = max_length
 
     def __call__(self, batch):
-        tokenized = [torch.tensor(x["tokens"]) for x in batch]
+        tokenized = [torch.from_numpy(x) for x in batch]
         output = torch.stack(tokenized, 0)
 
         assert output.shape[1] == self.max_length

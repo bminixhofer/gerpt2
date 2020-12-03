@@ -1,9 +1,8 @@
 from torch.utils.data import DataLoader
-import datasets
 from utils import Collator
-from transformers import GPT2Tokenizer
 import multiprocessing
 import argparse
+import h5py
 from tqdm.auto import tqdm
 
 if __name__ == "__main__":
@@ -13,25 +12,16 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    tokenizer = GPT2Tokenizer(
-        "data/used/german_tokenizer/vocab.json", "data/used/german_tokenizer/merges.txt"
-    )
-    tokenizer.pad_token = tokenizer.eos_token
+    with h5py.File("prepare/train.hdf5", "r", libver="latest", swmr=True) as f:
+        train_dataset = f["train"]
 
-    train_dataset = datasets.load_dataset(
-        "json",
-        data_files="data/used/train.tokens.json",
-        split="train",
-        cache_dir="data/used/train_tokens",
-    )
+        loader = DataLoader(
+            train_dataset,
+            collate_fn=Collator(args.max_length),
+            num_workers=multiprocessing.cpu_count(),
+            batch_size=args.batch_size,
+            shuffle=True,
+        )
 
-    loader = DataLoader(
-        train_dataset,
-        collate_fn=Collator(args.max_length),
-        num_workers=multiprocessing.cpu_count(),
-        batch_size=args.batch_size,
-        shuffle=True,
-    )
-
-    for batch in tqdm(loader):
-        pass
+        for batch in tqdm(loader):
+            pass
