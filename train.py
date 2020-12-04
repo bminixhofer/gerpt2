@@ -19,6 +19,8 @@ import shutil
 from coolname import generate_slug
 import h5pickle
 import math
+import logging
+import sys
 
 
 @dataclass
@@ -138,6 +140,8 @@ def get_model(extra_args):
 
 
 def main():
+    logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+
     json_file_parser = ArgumentParser()
     json_file_parser.add_argument("--config_file", type=str, default=None)
     json_file_parser.add_argument("--tpu_num_cores", type=int, default=None)
