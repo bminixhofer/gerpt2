@@ -18,6 +18,7 @@ import os
 import shutil
 from coolname import generate_slug
 import h5pickle
+import math
 
 
 @dataclass
@@ -176,10 +177,12 @@ def main():
 
         training_args.remove_unused_columns = False
         steps_per_epoch = int(
-            len(train_dataset)
-            / training_args.per_device_train_batch_size
-            / training_args.gradient_accumulation_steps
-            / training_args.tpu_num_cores
+            math.ceil(
+                len(train_dataset)
+                / training_args.per_device_train_batch_size
+                / training_args.gradient_accumulation_steps
+                / training_args.tpu_num_cores
+            )
         )
         training_args.steps_per_epoch = steps_per_epoch
         training_args.eval_steps = steps_per_epoch
