@@ -47,6 +47,8 @@ class GPT2Trainer(Trainer):
         self.extra_args = kwargs.pop("extra_args")
 
         super().__init__(*args, **kwargs)
+        print(f"Model is on device {self.model.device}.")
+        self.model.tie_weights()
 
     # adapted to not use scheduler
     def create_optimizer_and_scheduler(self, num_training_steps: int):
