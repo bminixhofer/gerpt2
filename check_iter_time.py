@@ -12,7 +12,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    with h5py.File("prepare/train.hdf5", "r", libver="latest", swmr=True) as f:
+    with h5py.File("data/train.hdf5", "r", libver="latest", swmr=True) as f:
         train_dataset = f["train"]
 
         loader = DataLoader(

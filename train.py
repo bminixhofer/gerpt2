@@ -17,7 +17,7 @@ import wandb
 import os
 import shutil
 from coolname import generate_slug
-import h5py
+import h5pickle
 
 
 @dataclass
@@ -147,7 +147,9 @@ def main():
     else:
         training_args, extra_args = parser.parse_json_file(json_parser_args.config_file)
 
-    with h5py.File("prepare/train.hdf5", "r") as f:
+    with h5pickle.File(
+        "data/train.hdf5", "r", libver="latest", swmr=True, skip_cache=False
+    ) as f:
         train_dataset = f["train"]
         val_dataset = f["val"]
 
@@ -160,8 +162,8 @@ def main():
         model = get_model(extra_args)
 
         tokenizer = GPT2Tokenizer(
-            "data/used/german_tokenizer/vocab.json",
-            "data/used/german_tokenizer/merges.txt",
+            "data/german_tokenizer_cc/vocab.json",
+            "data/german_tokenizer_cc/merges.txt",
         )
         tokenizer.pad_token = tokenizer.eos_token
 

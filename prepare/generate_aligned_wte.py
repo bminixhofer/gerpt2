@@ -4,6 +4,7 @@ import numpy as np
 from transformers import GPT2LMHeadModel, GPT2TokenizerFast
 from sklearn.metrics.pairwise import cosine_similarity
 import torch
+import math
 import json
 
 
@@ -147,23 +148,29 @@ def main(
         model.transformer.wte.weight.mean().item(),
         model.transformer.wte.weight.std().item(),
     )
-    similarities = cosine_similarity(de_tok_embs, en_tok_embs)
 
     en_vocab = english_tokenizer.get_vocab()
     n_matched = 0
 
-    for token_id in tqdm(range(len(german_wte_weight))):
-        en_token, _ = get_closest(token_id, similarities=similarities[token_id])
+    batch_size = 1024
+    for i in tqdm(range(int(math.ceil(len(german_wte_weight) / batch_size)))):
+        start, end = i * batch_size, min((i + 1) * batch_size, len(german_wte_weight))
 
-        if en_token is None:
-            german_wte_weight[token_id] = torch.normal(
-                mean, std, size=(german_wte_weight.shape[1],)
+        similarities = cosine_similarity(de_tok_embs[start:end], en_tok_embs)
+        for token_id in range(start, end):
+            en_token, _ = get_closest(
+                token_id, similarities=similarities[token_id - start]
             )
-        else:
-            en_token_id = en_vocab[en_token]
-            german_wte_weight[token_id] = model.transformer.wte.weight[en_token_id]
 
-            n_matched += 1
+            if en_token is None:
+                german_wte_weight[token_id] = torch.normal(
+                    mean, std, size=(german_wte_weight.shape[1],)
+                )
+            else:
+                en_token_id = en_vocab[en_token]
+                german_wte_weight[token_id] = model.transformer.wte.weight[en_token_id]
+
+                n_matched += 1
 
     print(f"Matching token found for {n_matched} of {len(en_vocab)} tokens.")
     torch.save(german_wte_weight, out_path)
