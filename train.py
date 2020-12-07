@@ -31,6 +31,7 @@ class ExtraArgs:
     max_n_val: int = None
     wte_path: str = None
     use_english_weights: bool = False
+    identifier: str = "gpt2"
 
 
 class GPT2WandbCallback(WandbCallback):
@@ -121,9 +122,9 @@ class GPT2Trainer(Trainer):
 
 def get_model(extra_args):
     if extra_args.use_english_weights:
-        model = GPT2LMHeadModel.from_pretrained("gpt2")
+        model = GPT2LMHeadModel.from_pretrained(extra_args.identifier)
     else:
-        model = GPT2LMHeadModel(GPT2Config.from_pretrained("gpt2"))
+        model = GPT2LMHeadModel(GPT2Config.from_pretrained(extra_args.identifier))
 
     wte = model.transformer.wte
     if extra_args.wte_path is not None:
@@ -190,7 +191,9 @@ def main():
         )
         training_args.steps_per_epoch = steps_per_epoch
         training_args.eval_steps = steps_per_epoch
-        training_args.save_steps = steps_per_epoch
+        training_args.save_steps = (
+            steps_per_epoch * training_args.num_train_epochs
+        )  # only save once at the end to save space
         training_args.run_name = name
         training_args.output_dir = os.path.join("checkpoints", name)
 
