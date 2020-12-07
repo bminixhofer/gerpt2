@@ -18,7 +18,6 @@ import os
 import shutil
 from coolname import generate_slug
 import h5pickle
-import math
 import logging
 import sys
 
@@ -182,12 +181,10 @@ def main():
 
         training_args.remove_unused_columns = False
         steps_per_epoch = int(
-            math.ceil(
-                len(train_dataset)
-                / training_args.per_device_train_batch_size
-                / training_args.gradient_accumulation_steps
-                / training_args.tpu_num_cores
-            )
+            len(train_dataset)
+            / training_args.per_device_train_batch_size
+            / training_args.gradient_accumulation_steps
+            / training_args.tpu_num_cores
         )
         training_args.steps_per_epoch = steps_per_epoch
         training_args.eval_steps = steps_per_epoch
@@ -209,6 +206,7 @@ def main():
         trainer.remove_callback(WandbCallback)
 
         trainer.train()
+        print("Done!")
 
 
 def _mp_fn(index):
