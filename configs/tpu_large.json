@@ -1,0 +1,20 @@
+{
+    "output_dir": 0,
+    "max_n_train": null,
+    "max_n_val": null,
+    "identifier": "gpt2-large",
+    "max_length": 1024,
+    "per_device_train_batch_size": 2,
+    "per_device_eval_batch_size": 2,
+    "gradient_accumulation_steps": 16,
+    "evaluation_strategy": "epoch",
+    "num_train_epochs": 2,
+    "wte_path": "data/german_wte_weight_large.pt",
+    "use_english_weights": 1,
+    "weight_decay": 0.01,
+    "learning_rate": 5e-3,
+    "dataloader_num_workers": 8,
+    "use_onecycle": 1,
+    "eval_accumulation_steps": 8,
+    "logging_steps": 10
+}

@@ -1,8 +1,8 @@
-from transformers import GPT2Tokenizer, GPT2LMHeadModel
 import click
-from tqdm.auto import tqdm
 import torch
 from datasets import load_dataset
+from tqdm.auto import tqdm
+from transformers import GPT2LMHeadModel, GPT2Tokenizer
 
 
 @click.command()
