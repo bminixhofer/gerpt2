@@ -16,6 +16,7 @@ I evaluated both GerPT2-large and the other German GPT2, [dbmdz/german-gpt2](htt
 | dbmdz/german-gpt2 | 49.47        | 62.92           |
 | GerPT2            | 24.78        | 35.33           |
 | GerPT2-large      | __16.08__    | __23.26__       |
+|                   |              |                 |
 
 See the script `evaluate.py` in the [GerPT2 Github repository](https://github.com/bminixhofer/gerpt2) for the code.
 
@@ -98,6 +99,21 @@ This helps a lot on a trial run I did, although I wasn't able to do a full compa
 ## License
 
 GerPT2-large is licensed under the MIT License.
+
+## Citing
+
+Please cite GerPT2 as follows:
+
+```
+@misc{Minixhofer_GerPT2_German_large_2020,
+author = {Minixhofer, Benjamin},
+doi = {10.5281/zenodo.5509984},
+month = {12},
+title = {{GerPT2: German large and small versions of GPT2}},
+url = {https://github.com/bminixhofer/gerpt2},
+year = {2020}
+}
+```
 
 ## Acknowledgements
 
