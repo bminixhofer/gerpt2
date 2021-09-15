@@ -98,7 +98,7 @@ This helps a lot on a trial run I did, although I wasn't able to do a full compa
 
 ## License
 
-GerPT2-large is licensed under the MIT License.
+GerPT2 is licensed under the MIT License.
 
 ## Citing
 
