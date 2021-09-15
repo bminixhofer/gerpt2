@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use this model, please cite it as below."
+authors:
+- family-names: "Minixhofer"
+  given-names: "Benjamin"
+  orcid: "https://orcid.org/0000-0002-6520-4245"
+title: "GerPT2: German large and small versions of GPT2"
+version: 1.0.0
+doi: 10.5281/zenodo.5509984
+date-released: 2020-12-27
+url: "https://github.com/bminixhofer/gerpt2"
