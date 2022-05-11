@@ -55,7 +55,7 @@ print(tokenizer.decode(output))
 
 ## Training details
 
-GerPT2-large is trained on the entire German data (67GB) from the [CC-100 Corpus](http://data.statmt.org/cc-100/) and weights were initialized from the [English GPT2 model](https://huggingface.co/gpt2-large). 
+GerPT2-large is trained on the entire German data from the [CC-100 Corpus](http://data.statmt.org/cc-100/) and weights were initialized from the [English GPT2 model](https://huggingface.co/gpt2-large). 
 GerPT2-large was trained with:
 
 - a batch size of 256
